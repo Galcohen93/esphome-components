@@ -65,32 +65,30 @@ void esphome::wifi_csi::CsiSensor::set_buffer_size(int bufferSize)
     m_rssi = reinterpret_cast<int*>(malloc(m_bufferSize * sizeof(int)));
 }
 
-// void esphome::wifi_csi::CsiSensor::set_buffer_vacant(int bufferSize){
-//     int sum = 0;
-//     int mean = 0;
-//     double standard_dev = 0;
-//     for(int indx = 0; indx < bufferSize;indx++){
-//         int currentRssi = 0;
-//         if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
-//             m_rssi[indx]  = currentRssi;
-//             sum +=  currentRssi;
-//     }
-//     mean  = sum / bufferSize;
-//         for(int indx = 0;indx < bufferSize;indx++){
-//             standard_dev += pow(m_rssi[indx]-mean , 2);
-//     } 
-//     standard_dev =sqrt(standard_dev/bufferSize) ;
-//     set_sensitivity(standard_dev);
+void esphome::wifi_csi::CsiSensor::set_buffer_vacant(int bufferSize){
+    int sum = 0;
+    int mean = 0;
+    float standard_dev = 0;
+    for(int indx = 0; indx < bufferSize;indx++){
+        int currentRssi = 0;
+        if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
+            m_rssi[indx] = currentRssi;
+            sum += currentRssi;
+    }
+    mean  = sum / bufferSize;
+        for(int indx = 0;indx < bufferSize;indx++){
+            standard_dev += pow(m_rssi[indx]-mean , 2);
+    } 
+    standard_dev = sqrt(standard_dev/bufferSize);
+    set_sensitivity(standard_dev);
 
-// }
+}
 
 
 void esphome::wifi_csi::CsiSensor::update() {
     static int idx = 0;   // pointer inside rssi
     static int cnt = 0;   // number of values inside rssi
     static float sum = 0.0;   // sum of all rssi values
-
-    ESP_LOGCONFIG(TAG, "Wifi CasdasdSI:");
 
     if (m_rssi != nullptr) {            
         int currentRssi = 0;
@@ -118,9 +116,9 @@ void esphome::wifi_csi::CsiSensor::update() {
             last_t = now_t;
         }
     } else {
-        // ESP_LOGD(TAG, "Wait for %d minuete and %d seconds:", 1, 10);
-        // vTaskDelay(pdMS_TO_TICKS(60000));
+        ESP_LOGD(TAG, "Wait for %d minuete and %d seconds:", 1, 10);
+        vTaskDelay(pdMS_TO_TICKS(60000));
         set_buffer_size(m_bufferSize);
-        // set_buffer_vacant(m_bufferSize); // create the rssi buffer
+        set_buffer_vacant(m_bufferSize); // create the rssi buffer
     }
 }
