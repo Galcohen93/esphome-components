@@ -90,7 +90,7 @@ void esphome::wifi_csi::CsiSensor::update() {
         time_t now_t;
         time(&now_t);
         if (difftime(now_t, last_t) > 5.0) {
-            ESP_LOGD(TAG, "idx: %d, cnt: %d: avg: %.1f, current: %d, sensitvity: %d, motion: %d", idx, cnt, avgerageRssi, currentRssi, m_sensitivity, motion);
+            ESP_LOGD(TAG, "idx: %d, cnt: %d: avg: %.1f, current: %d, sensitvity: %.1f, motion: %d", idx, cnt, avgerageRssi, currentRssi, m_sensitivity, motion);
             last_t = now_t;
         }
     } else {
