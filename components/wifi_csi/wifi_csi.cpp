@@ -71,6 +71,8 @@ void esphome::wifi_csi::CsiSensor::update() {
     static float sum = 0.0;   // sum of all rssi values
 
     if (m_rssi) {            
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        ESP_LOGD(TAG, "delay: %d", 1);
         int currentRssi = 0;
         if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
         if (cnt == m_bufferSize) {
