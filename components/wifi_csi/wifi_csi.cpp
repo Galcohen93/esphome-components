@@ -70,7 +70,8 @@ void esphome::wifi_csi::CsiSensor::update() {
     static float sum = 0.0;   // sum of all rssi values
 
     if (m_rssi) {            
-        ESP_LOGD(TAG, "idx: %d", idx);
+        ESP_LOGCONFIG(TAG, "Wifi CSI:testetsets");
+
         int currentRssi = 0;
         if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
         if (cnt == m_bufferSize) {
