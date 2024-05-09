@@ -8,8 +8,6 @@
  */
 
 #include "wifi_csi.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
 static const char *const TAG = "wifi_csi";
 extern esphome::wifi::WiFiComponent *esphome::wifi::global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
