@@ -9,6 +9,7 @@
 
 #include "wifi_csi.h"
 
+
 static const char *const TAG = "wifi_csi";
 extern esphome::wifi::WiFiComponent *esphome::wifi::global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -90,8 +91,7 @@ void esphome::wifi_csi::CsiSensor::update() {
         time_t now_t;
         time(&now_t);
         if (difftime(now_t, last_t) > 5.0) {
-            // ESP_LOGD(TAG, "idx: %d", idx);
-            ESP_LOGD(TAG, "idx: %d, cnt: %d: avg: %.1f, current: %d, sensitvity: %d", idx, cnt, avgerageRssi, currentRssi, m_sensitivity);
+            ESP_LOGD(TAG, "idx: %d, cnt: %d: avg: %.1f, current: %d, sensitvity: %.2f, motion: %d", idx, cnt, avgerageRssi, currentRssi, m_sensitivity, motion);
             last_t = now_t;
         }
     } else {
