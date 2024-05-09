@@ -29,6 +29,7 @@ esphome::wifi_csi::CsiSensor::CsiSensor()
 esphome::wifi_csi::CsiSensor::~CsiSensor()
 {
     if (m_rssi) {
+        ESP_LOGD(TAG, "rssi");
         free(m_rssi);
         m_rssi = nullptr;
     }
@@ -90,6 +91,8 @@ void esphome::wifi_csi::CsiSensor::update() {
     static int cnt = 0;   // number of values inside rssi
     static float sum = 0.0;   // sum of all rssi values
 
+    ESP_LOGD(TAG, "rssi: %d,", m_rssi[idx]);
+
     if (m_rssi != nullptr) {            
         int currentRssi = 0;
         if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
@@ -117,7 +120,7 @@ void esphome::wifi_csi::CsiSensor::update() {
         }
     } else {
         ESP_LOGD(TAG, "Wait for %d minuete and %d seconds:", 1, 10);
-        vTaskDelay(pdMS_TO_TICKS(60000));
+        vTaskDelay(pdMS_TO_TICKS(10000));
         set_buffer_size(m_bufferSize);
         set_buffer_vacant(m_bufferSize); // create the rssi buffer
     }
