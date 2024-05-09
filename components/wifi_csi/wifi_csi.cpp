@@ -8,8 +8,8 @@
  */
 
 #include "wifi_csi.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+
+
 
 static const char *const TAG = "wifi_csi";
 extern esphome::wifi::WiFiComponent *esphome::wifi::global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -18,7 +18,7 @@ esphome::wifi_csi::CsiSensor::CsiSensor()
 : PollingComponent()
 , binary_sensor::BinarySensor()
 , m_pollingInterval(100)
-, m_bufferSize(100)
+, m_bufferSize(1000)
 , m_sensitivity(2)
 , m_rssi(nullptr)
 {
@@ -61,17 +61,36 @@ void esphome::wifi_csi::CsiSensor::set_sensitivity(float sensitivity)
 void esphome::wifi_csi::CsiSensor::set_buffer_size(int bufferSize)
 {
     m_bufferSize = bufferSize;
-    if (m_rssi) free(m_rssi);
+    if (m_rssi != nullptr) free(m_rssi);
     m_rssi = reinterpret_cast<int*>(malloc(m_bufferSize * sizeof(int)));
 }
+
+void esphome::wifi_csi::CsiSensor::set_buffer_vacant(int bufferSize){
+    int sum = 0;
+    int mean = 0;
+    double standard_dev = 0;
+    for(int indx = 0; indx < bufferSize;indx++){
+        int currentRssi = 0;
+        if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
+            m_rssi[indx]  = currentRssi;
+            sum +=  currentRssi;
+    }
+    mean  = sum / bufferSize;
+        for(int indx = 0;indx < bufferSize;indx++){
+            standard_dev += pow(m_rssi[indx]-mean , 2);
+    } 
+    standard_dev =sqrt(standard_dev/bufferSize) ;
+    set_sensitivity(standard_dev);
+
+}
+
 
 void esphome::wifi_csi::CsiSensor::update() {
     static int idx = 0;   // pointer inside rssi
     static int cnt = 0;   // number of values inside rssi
     static float sum = 0.0;   // sum of all rssi values
 
-    if (m_rssi) {            
-        vTaskDelay(pdMS_TO_TICKS(5000));
+    if (m_rssi != nullptr) {            
         int currentRssi = 0;
         if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
         if (cnt == m_bufferSize) {
@@ -95,14 +114,13 @@ void esphome::wifi_csi::CsiSensor::update() {
         time_t now_t;
         time(&now_t);
         if (difftime(now_t, last_t) > 5.0) {
-            // ESP_LOGD(TAG, "idx: %d, cnt: %d: avg: %.1f, current: %d, sensitvity: %.2f, motion: %d", idx, cnt, avgerageRssi, currentRssi, m_sensitivity, motion);
+            ESP_LOGD(TAG, "idx: %d, cnt: %d: avg: %.1f, current: %d, sensitvity: %.2f, motion: %d", idx, cnt, avgerageRssi, currentRssi, m_sensitivity, motion);
             last_t = now_t;
         }
     } else {
-        vTaskDelay(pdMS_TO_TICKS(5000));
-        ESP_LOGD(TAG, "delay: %d", 1);
-
-
-        set_buffer_size(m_bufferSize);  // create the rssi buffer
+        ESP_LOGC(TAG, "Wait for %d minuete and %d seconds:", 1, 10);
+        vTaskDelay(pdMS_TO_TICKS(60000));
+        set_buffer_size(m_bufferSize);
+        set_buffer_vacant(m_bufferSize); // create the rssi buffer
     }
 }

@@ -13,6 +13,10 @@
 #include "esphome/core/log.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include <math.h>
+
 #ifdef USE_ESP32
 #include <WiFi.h>
 #endif
