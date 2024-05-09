@@ -90,6 +90,8 @@ void esphome::wifi_csi::CsiSensor::update() {
     static int cnt = 0;   // number of values inside rssi
     static float sum = 0.0;   // sum of all rssi values
 
+    ESP_LOGCONFIG(TAG, "Wifi CasdasdSI:");
+
     if (m_rssi != nullptr) {            
         int currentRssi = 0;
         if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
@@ -99,8 +101,6 @@ void esphome::wifi_csi::CsiSensor::update() {
             cnt += 1;
         }
         m_rssi[idx] = currentRssi;
-        ESP_LOGD(TAG, "delay: %d", currentRssi);
-
         idx = (idx + 1) % m_bufferSize;
         sum += currentRssi;
 
