@@ -118,9 +118,9 @@ void esphome::wifi_csi::CsiSensor::update() {
             last_t = now_t;
         }
     } else {
-        ESP_LOGC(TAG, "Wait for %d minuete and %d seconds:", 1, 10);
-        vTaskDelay(pdMS_TO_TICKS(60000));
+        // ESP_LOGC(TAG, "Wait for %d minuete and %d seconds:", 1, 10);
+        // vTaskDelay(pdMS_TO_TICKS(60000));
         set_buffer_size(m_bufferSize);
-        set_buffer_vacant(m_bufferSize); // create the rssi buffer
+        // set_buffer_vacant(m_bufferSize); // create the rssi buffer
     }
 }
