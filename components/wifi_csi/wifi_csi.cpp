@@ -8,6 +8,8 @@
  */
 
 #include "wifi_csi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *const TAG = "wifi_csi";
 extern esphome::wifi::WiFiComponent *esphome::wifi::global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -94,6 +96,11 @@ void esphome::wifi_csi::CsiSensor::update() {
             last_t = now_t;
         }
     } else {
+        //  setup 
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        ESP_LOGD(TAG, "delay: %d", 1);
+
+
         set_buffer_size(m_bufferSize);  // create the rssi buffer
     }
 }
