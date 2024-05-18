@@ -70,7 +70,6 @@ void esphome::wifi_csi::CsiSensor::update() {
     static int idx = 0;   // pointer inside rssi
     static int cnt = 0;   // number of values inside rssi
     static float sum = 0.0;   // sum of all rssi values
-    static int ids = 0;     // pointer last 5 elements calc sensitivity
     static float std = 0; // std last 5 
 
     if (m_rssi) {        
@@ -88,7 +87,7 @@ void esphome::wifi_csi::CsiSensor::update() {
             else {
                 std = sqrt(std / m_bufferSize);
 
-                printf('STD: %.2f',std);
+                ESP_LOGD(TAG,'STD: %.2f',std);
             }
 
             float dev = abs(m_rssi[idx] - avgerageRssi);
