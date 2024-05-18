@@ -86,10 +86,12 @@ void esphome::wifi_csi::CsiSensor::update() {
 
             if (idx == m_bufferSize - 1){
                 std = sqrt(std / m_bufferSize);
-                ESP_LOGD(TAG,"STD: %.2f",std);
+                // ESP_LOGD(TAG,"STD: %.2f",std);
             }
             float dev = abs(m_rssi[idx] - avgerageRssi);
             motion = (dev >= m_sensitivity);
+
+            ESP_LOGD(TAG,"std: %.2f, curRssi: %d , avgRssi: %.2f, motion: %d",std,currentRssi,avgerageRssi,motion);
             publish_state(motion);
 
         } else {
@@ -99,7 +101,7 @@ void esphome::wifi_csi::CsiSensor::update() {
         m_rssi[idx] = currentRssi;
         idx = (idx + 1) % m_bufferSize;
         sum += currentRssi;
-        ESP_LOGD(TAG,"rssi idx: %d",m_rssi[idx]);
+        // ESP_LOGD(TAG,"rssi idx: %d",m_rssi[idx]);
 
 
         // log every 5 seconds
