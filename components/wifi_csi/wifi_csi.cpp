@@ -7,7 +7,6 @@
  */
 
 #include "wifi_csi.h"
-#include <iostream>
 
 
 
@@ -71,7 +70,9 @@ void esphome::wifi_csi::CsiSensor::update() {
     static int idx = 0;   // pointer inside rssi
     static int cnt = 0;   // number of values inside rssi
     static float sum = 0.0;   // sum of all rssi values
-    static float std = 0; // std last 5 
+    static float std = 0; // std 
+    static float std_part = 0; // std of 20 rssi
+
 
     if (m_rssi) {        
         float avgerageRssi = 0;    
@@ -84,14 +85,22 @@ void esphome::wifi_csi::CsiSensor::update() {
 
             avgerageRssi = sum / cnt;
             std += pow((currentRssi - avgerageRssi),2);
+            std_part += pow((currentRssi - avgerageRssi),2);
+
+            if (idx % 20 == 0){       // std each 20 rssi waves
+                std_part = sqrt(std_part / 20);
+                // ESP_LOGD(TAG,"STD: %.2f",std);
+                ESP_LOGD(TAG,"std each 20: %.2f",std_part);
+                std_part = 0;
+            }
 
             if (idx == m_bufferSize - 1){
                 std = sqrt(std / m_bufferSize);
                 // ESP_LOGD(TAG,"STD: %.2f",std);
                 ESP_LOGD(TAG,"std: %.2f, curRssi: %d , avgRssi: %.2f, motion: %d",std,currentRssi,avgerageRssi,motion);
-                std::cout<< m_rssi << std::endl;
-
+                std = 0;
             }
+
             float dev = abs(m_rssi[idx] - avgerageRssi);
             motion = (dev >= m_sensitivity);
 
