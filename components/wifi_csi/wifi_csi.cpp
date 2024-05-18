@@ -1,4 +1,3 @@
-
 /**
  * @brief Simple motion detection sensor that uses the WiFi signal strength
  *        signal (RSSI) to detect motions.
@@ -74,30 +73,32 @@ void esphome::wifi_csi::CsiSensor::update() {
     static int ids = 0;     // pointer last 5 elements calc sensitivity
     static float std = 0; // std last 5 
 
-    if (m_rssi) {            
+    if (m_rssi) {        
+        float avgerageRssi = 0;    
         int currentRssi = 0;
+        bool motion = 0;
         if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
         if (cnt == m_bufferSize) {
             sum -= m_rssi[idx];  // we will overwrite the oldest value, so remove it from the current sum
-            float avgerageRssi = sum / cnt; // calcuating the avgerage
 
+            avgerageRssi = sum / cnt;
             if (idx < m_bufferSize){
                 std += pow((currentRssi - avgerageRssi),2);
             }
             else {
                 std = sqrt(std / m_bufferSize);
-                ESP_LOGD(TAG,'STD: %.1f',std);
+
+                println('STD: %.2f',std);
             }
 
             float dev = abs(m_rssi[idx] - avgerageRssi);
-            bool motion = (dev >= m_sensitivity);
+            motion = (dev >= m_sensitivity);
             publish_state(motion);
 
         } else {
             cnt += 1;
 
         }
-
         m_rssi[idx] = currentRssi;
         idx = (idx + 1) % m_bufferSize;
         sum += currentRssi;
@@ -115,23 +116,3 @@ void esphome::wifi_csi::CsiSensor::update() {
         set_buffer_size(m_bufferSize);
     }
 }
-
-
-// void esphome::wifi_csi::CsiSensor::set_buffer_vacant(int bufferSize){
-//     int sum = 0;
-//     int mean = 0;
-//     float standard_dev = 0;
-//     for(int indx = 0; indx < bufferSize;indx++){
-//         int currentRssi = 0;
-//         if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
-//             m_rssi[indx] = currentRssi;
-//             sum += currentRssi;
-//     }
-//     mean  = sum / bufferSize;
-//         for(int indx = 0;indx < bufferSize;indx++){
-//             standard_dev += pow(m_rssi[indx]-mean , 2);
-//     } 
-//     standard_dev = sqrt(standard_dev/bufferSize);
-//     set_sensitivity(standard_dev);
-
-// }
