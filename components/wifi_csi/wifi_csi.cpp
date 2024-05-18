@@ -88,7 +88,7 @@ void esphome::wifi_csi::CsiSensor::update() {
             else {
                 std = sqrt(std / m_bufferSize);
 
-                println('STD: %.2f',std);
+                printf('STD: %.2f',std);
             }
 
             float dev = abs(m_rssi[idx] - avgerageRssi);
