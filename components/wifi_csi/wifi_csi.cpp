@@ -18,7 +18,7 @@ esphome::wifi_csi::CsiSensor::CsiSensor()
 : PollingComponent()
 , binary_sensor::BinarySensor()
 , m_pollingInterval(100)
-, m_bufferSize(1000)
+, m_bufferSize(100)
 , m_sensitivity(2)
 , m_rssi(nullptr)
 {
@@ -71,24 +71,39 @@ void esphome::wifi_csi::CsiSensor::update() {
     static int idx = 0;   // pointer inside rssi
     static int cnt = 0;   // number of values inside rssi
     static float sum = 0.0;   // sum of all rssi values
+    static int ids = 0;     // pointer last 5 elements calc sensitivity
+    static float std = 0; // std last 5 
 
     if (m_rssi) {            
         int currentRssi = 0;
         if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
         if (cnt == m_bufferSize) {
             sum -= m_rssi[idx];  // we will overwrite the oldest value, so remove it from the current sum
+
+            float avgerageRssi = sum / cnt; // calcuating the avgerage
+
+            if (idx < m_bufferSize){
+                std += pow((currentRssi - avgerageRssi),2);
+            }
+            else {
+                std = sqrt(std / m_bufferSize);
+                ESP_LOGD('STD: %.2f',std);
+            }
+
+            float dev = abs(m_rssi[idx] - avgerageRssi);
+            bool motion = (dev >= m_sensitivity);
+            publish_state(motion);
+
+            }
+
         } else {
             cnt += 1;
+
         }
+
         m_rssi[idx] = currentRssi;
         idx = (idx + 1) % m_bufferSize;
         sum += currentRssi;
-
-        float avgerageRssi = sum / cnt;
-        
-        float dev = abs(currentRssi - avgerageRssi);
-        bool motion = (dev >= m_sensitivity);
-        publish_state(motion);
 
         // log every 5 seconds
         static time_t last_t;
