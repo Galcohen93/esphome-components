@@ -79,7 +79,6 @@ void esphome::wifi_csi::CsiSensor::update() {
         if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
         if (cnt == m_bufferSize) {
             sum -= m_rssi[idx];  // we will overwrite the oldest value, so remove it from the current sum
-
             float avgerageRssi = sum / cnt; // calcuating the avgerage
 
             if (idx < m_bufferSize){
@@ -87,14 +86,12 @@ void esphome::wifi_csi::CsiSensor::update() {
             }
             else {
                 std = sqrt(std / m_bufferSize);
-                ESP_LOGD('STD: %f',std);
+                ESP_LOGD(TAG,'STD: %.1f',std);
             }
 
             float dev = abs(m_rssi[idx] - avgerageRssi);
             bool motion = (dev >= m_sensitivity);
             publish_state(motion);
-
-            
 
         } else {
             cnt += 1;
@@ -113,7 +110,8 @@ void esphome::wifi_csi::CsiSensor::update() {
             ESP_LOGD(TAG, "idx: %d, cnt: %d: avg: %.1f, current: %d, sensitvity: %.2f, motion: %d", idx, cnt, avgerageRssi, currentRssi, m_sensitivity, motion);
             last_t = now_t;
         }
-    } else {
+    } 
+    else {
         set_buffer_size(m_bufferSize);
     }
 }
