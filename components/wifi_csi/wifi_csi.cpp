@@ -94,7 +94,7 @@ void esphome::wifi_csi::CsiSensor::update() {
             bool motion = (dev >= m_sensitivity);
             publish_state(motion);
 
-            }
+            
 
         } else {
             cnt += 1;
