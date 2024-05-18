@@ -70,7 +70,7 @@ void esphome::wifi_csi::CsiSensor::update() {
     static int idx = 0;   // pointer inside rssi
     static int cnt = 0;   // number of values inside rssi
     static float sum = 0.0;   // sum of all rssi values
-    static float std = 0; // std 
+    // static float std = 0; // std 
     static float std_part = 0; // std of 20 rssi
 
 
@@ -84,7 +84,7 @@ void esphome::wifi_csi::CsiSensor::update() {
             sum -= m_rssi[idx];  // we will overwrite the oldest value, so remove it from the current sum
 
             avgerageRssi = sum / cnt;
-            std += pow((currentRssi - avgerageRssi),2);
+            // std += pow((currentRssi - avgerageRssi),2);
             std_part += pow((currentRssi - avgerageRssi),2);
 
             if (idx % 20 == 0){       // std each 20 rssi waves
@@ -92,14 +92,19 @@ void esphome::wifi_csi::CsiSensor::update() {
                 // ESP_LOGD(TAG,"STD: %.2f",std);
                 ESP_LOGD(TAG,"std each 20: %.2f",std_part);
                 std_part = 0;
+                if (std_part > 1.0){
+                    publish_state(true);
+                    ESP_LOGD(TAG,"published ON from std20 ");
+
+                }
             }
 
-            if (idx == m_bufferSize - 1){
-                std = sqrt(std / m_bufferSize);
-                // ESP_LOGD(TAG,"STD: %.2f",std);
-                ESP_LOGD(TAG,"std: %.2f, curRssi: %d , avgRssi: %.2f, motion: %d",std,currentRssi,avgerageRssi,motion);
-                std = 0;
-            }
+            // if (idx == m_bufferSize - 1){
+            //     std = sqrt(std / m_bufferSize);
+            //     // ESP_LOGD(TAG,"STD: %.2f",std);
+            //     ESP_LOGD(TAG,"std: %.2f, curRssi: %d , avgRssi: %.2f, motion: %d",std,currentRssi,avgerageRssi,motion);
+            //     std = 0;
+            // }
 
             float dev = abs(m_rssi[idx] - avgerageRssi);
             motion = (dev >= m_sensitivity);
@@ -129,3 +134,5 @@ void esphome::wifi_csi::CsiSensor::update() {
         set_buffer_size(m_bufferSize);
     }
 }
+
+
