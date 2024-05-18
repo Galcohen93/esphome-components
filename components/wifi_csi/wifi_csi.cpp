@@ -91,12 +91,12 @@ void esphome::wifi_csi::CsiSensor::update() {
                 std_part = sqrt(std_part / 20);
                 // ESP_LOGD(TAG,"STD: %.2f",std);
                 ESP_LOGD(TAG,"std each 20: %.2f",std_part);
-                std_part = 0;
                 if (std_part > 1.0){
                     publish_state(true);
                     ESP_LOGD(TAG,"published ON from std20 ");
-
                 }
+                std_part = 0;
+
             }
 
             // if (idx == m_bufferSize - 1){
