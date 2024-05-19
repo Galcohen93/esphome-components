@@ -86,8 +86,9 @@ void esphome::wifi_csi::CsiSensor::update() {
             sum -= m_rssi[idx];  // we will overwrite the oldest value, so remove it from the current sum
 
             avgerageRssi = sum / cnt;
-            stdv += pow((currentRssi - avgerageRssi),2);
-            stdv_part = stdv;
+            float diff = pow((currentRssi - avgerageRssi),2);
+            stdv += diff;
+            stdv_part += diff;
 
             if ((idx + 1) % 20 == 0){       // stdv each 20 rssi waves
                 stdv_part = sqrt(stdv_part / 20);
