@@ -75,6 +75,7 @@ void esphome::wifi_csi::CsiSensor::update() {
     static float ewma_stdv = 0; // EWMA of stdv
     static float alpha = 0.2; // Smoothing factor for EWMA
     static float threshold = 1.3; // Initial threshold value
+    static bool detected = false;
 
     if (m_rssi) {        
         float avgerageRssi = 0;    
@@ -88,20 +89,6 @@ void esphome::wifi_csi::CsiSensor::update() {
             avgerageRssi = sum / cnt;
             float diff = pow((currentRssi - avgerageRssi),2);
             stdv += diff;
-            // stdv_part += diff;
-            // if ((idx + 1) % 20 == 0){       // stdv each 20 rssi waves
-            //     stdv_part = sqrt(stdv_part / 20);
-            //     // ESP_LOGD(TAG,"stdv: %.2f",stdv);
-            //     ESP_LOGD(TAG,"stdv each 20: %.2f",stdv_part);
-            //     // if (stdv_part > 1.0){
-            //     //     publish_state(true);
-            //     //     ESP_LOGD(TAG,"published ON from stdv20 ");
-            //     // }
-            //     // publish_state(stdv_part > 1.3);
-            //     stdv_part = 0;
-
-            // }
-
             if (idx == m_bufferSize - 1){
                 stdv = sqrt(stdv / m_bufferSize);
                 ESP_LOGD(TAG,"stdv: %.2f",stdv);
@@ -114,8 +101,13 @@ void esphome::wifi_csi::CsiSensor::update() {
 
                 // Publish state based on adjusted threshold
                 bool new_state = (stdv - m_sensitivity) > threshold;
-                publish_state(new_state);
-
+                if (detected){
+                    if ((stdv + m_sensitivity) > threshold){
+                        publish_state(true)
+                    }
+                } 
+                detected = new_state;
+                
                 ESP_LOGD(TAG, "ewma_stdv: %.2f, threshold: %.2f, state: %d", ewma_stdv, threshold, new_state);
                 // ESP_LOGD(TAG,"stdv: %.2f, curRssi: %d , avgRssi: %.2f, motion: %d",stdv,currentRssi,avgerageRssi,motion);
                 stdv = 0;
@@ -147,6 +139,21 @@ void esphome::wifi_csi::CsiSensor::update() {
     else {
         set_buffer_size(m_bufferSize);
     }
+
+           // stdv_part += diff;
+            // if ((idx + 1) % 20 == 0){       // stdv each 20 rssi waves
+            //     stdv_part = sqrt(stdv_part / 20);
+            //     // ESP_LOGD(TAG,"stdv: %.2f",stdv);
+            //     ESP_LOGD(TAG,"stdv each 20: %.2f",stdv_part);
+            //     // if (stdv_part > 1.0){
+            //     //     publish_state(true);
+            //     //     ESP_LOGD(TAG,"published ON from stdv20 ");
+            //     // }
+            //     // publish_state(stdv_part > 1.3);
+            //     stdv_part = 0;
+
+            // }
+
 }
 
 
