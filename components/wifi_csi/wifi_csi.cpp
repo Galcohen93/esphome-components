@@ -73,7 +73,7 @@ void esphome::wifi_csi::CsiSensor::update() {
     static float stdv = 0; // stdv 
     static float stdv_part = 0; // stdv of 20 rssi
     static float ewma_stdv = 0; // EWMA of stdv
-    static float alpha = 0.1; // Smoothing factor for EWMA
+    static float alpha = 0.3; // Smoothing factor for EWMA
     static float threshold = 1.3; // Initial threshold value
 
     if (m_rssi) {        
@@ -88,19 +88,19 @@ void esphome::wifi_csi::CsiSensor::update() {
             avgerageRssi = sum / cnt;
             float diff = pow((currentRssi - avgerageRssi),2);
             stdv += diff;
-            stdv_part += diff;
-            if ((idx + 1) % 20 == 0){       // stdv each 20 rssi waves
-                stdv_part = sqrt(stdv_part / 20);
-                // ESP_LOGD(TAG,"stdv: %.2f",stdv);
-                ESP_LOGD(TAG,"stdv each 20: %.2f",stdv_part);
-                // if (stdv_part > 1.0){
-                //     publish_state(true);
-                //     ESP_LOGD(TAG,"published ON from stdv20 ");
-                // }
-                // publish_state(stdv_part > 1.3);
-                stdv_part = 0;
+            // stdv_part += diff;
+            // if ((idx + 1) % 20 == 0){       // stdv each 20 rssi waves
+            //     stdv_part = sqrt(stdv_part / 20);
+            //     // ESP_LOGD(TAG,"stdv: %.2f",stdv);
+            //     ESP_LOGD(TAG,"stdv each 20: %.2f",stdv_part);
+            //     // if (stdv_part > 1.0){
+            //     //     publish_state(true);
+            //     //     ESP_LOGD(TAG,"published ON from stdv20 ");
+            //     // }
+            //     // publish_state(stdv_part > 1.3);
+            //     stdv_part = 0;
 
-            }
+            // }
 
             if (idx == m_bufferSize - 1){
                 stdv = sqrt(stdv / m_bufferSize);
