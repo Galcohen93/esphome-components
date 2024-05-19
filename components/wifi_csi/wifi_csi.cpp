@@ -70,8 +70,8 @@ void esphome::wifi_csi::CsiSensor::update() {
     static int idx = 0;   // pointer inside rssi
     static int cnt = 0;   // number of values inside rssi
     static float sum = 0.0;   // sum of all rssi values
-    // static float std = 0; // std 
-    static float std_part = 0; // std of 20 rssi
+    static float stdv = 0; // stdv 
+    static float stdv_part = 0; // stdv of 20 rssi
 
 
     if (m_rssi) {        
@@ -84,32 +84,34 @@ void esphome::wifi_csi::CsiSensor::update() {
             sum -= m_rssi[idx];  // we will overwrite the oldest value, so remove it from the current sum
 
             avgerageRssi = sum / cnt;
-            // std += pow((currentRssi - avgerageRssi),2);
-            std_part += pow((currentRssi - avgerageRssi),2);
+            stdv += pow((currentRssi - avgerageRssi),2);
+            stdv_part = stdv;
 
-            if (idx % 20 == 0){       // std each 20 rssi waves
-                std_part = sqrt(std_part / 20);
-                // ESP_LOGD(TAG,"STD: %.2f",std);
-                ESP_LOGD(TAG,"std each 20: %.2f",std_part);
-                if (std_part > 1.0){
-                    publish_state(true);
-                    ESP_LOGD(TAG,"published ON from std20 ");
-                }
-                std_part = 0;
+            if (idx % 20 == 0){       // stdv each 20 rssi waves
+                stdv_part = sqrt(stdv_part / 20);
+                // ESP_LOGD(TAG,"stdv: %.2f",stdv);
+                ESP_LOGD(TAG,"stdv each 20: %.2f",stdv_part);
+                // if (stdv_part > 1.0){
+                //     publish_state(true);
+                //     ESP_LOGD(TAG,"published ON from stdv20 ");
+                // }
+                // publish_state(stdv_part > 1.3);
+                stdv_part = 0;
 
             }
 
-            // if (idx == m_bufferSize - 1){
-            //     std = sqrt(std / m_bufferSize);
-            //     // ESP_LOGD(TAG,"STD: %.2f",std);
-            //     ESP_LOGD(TAG,"std: %.2f, curRssi: %d , avgRssi: %.2f, motion: %d",std,currentRssi,avgerageRssi,motion);
-            //     std = 0;
-            // }
+            if (idx == m_bufferSize - 1){
+                stdv = sqrt(stdv / m_bufferSize);
+                ESP_LOGD(TAG,"stdv: %.2f",stdv);
+                publish_state(stdv > 1.3);
+                // ESP_LOGD(TAG,"stdv: %.2f, curRssi: %d , avgRssi: %.2f, motion: %d",stdv,currentRssi,avgerageRssi,motion);
+                stdv = 0;
+            }
 
-            float dev = abs(m_rssi[idx] - avgerageRssi);
-            motion = (dev >= m_sensitivity);
+            // float dev = abs(m_rssi[idx] - avgerageRssi);
+            // motion = (dev >= m_sensitivity);
 
-            publish_state(motion);
+            // publish_state(motion);
 
         } else {
             cnt += 1;
