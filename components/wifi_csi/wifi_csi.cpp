@@ -98,7 +98,7 @@ void esphome::wifi_csi::CsiSensor::update() {
 
                 ewma_stdv = alpha * stdv + (1 - alpha) * ewma_stdv;
                 // Adjust the threshold based on EWMA
-                threshold = ewma_stdv * 1.3; // Adjust the multiplier as needed
+                threshold = ewma_stdv * 1.1; // Adjust the multiplier as needed
                 
 
                 // Publish state based on adjusted threshold
