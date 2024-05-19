@@ -86,7 +86,6 @@ void esphome::wifi_csi::CsiSensor::update() {
 
         if (cnt == m_bufferSize) {
             sum -= m_rssi[idx];  // we will overwrite the oldest value, so remove it from the current sum
-
             avgerageRssi = sum / cnt;
             float diff = pow((currentRssi - avgerageRssi),2);
             stdv += diff;
@@ -95,11 +94,12 @@ void esphome::wifi_csi::CsiSensor::update() {
                 ESP_LOGD(TAG,"stdv: %.2f",stdv);
 
                 // Update EWMA
-                ewma_stdv = alpha * stdv + (1 - alpha) * ewma_stdv;
+                if(new_state) publish_state((stdv) > threshold);
 
+                ewma_stdv = alpha * stdv + (1 - alpha) * ewma_stdv;
                 // Adjust the threshold based on EWMA
                 threshold = ewma_stdv * 1.3; // Adjust the multiplier as needed
-                if(new_state) publish_state((stdv + m_sensitivity) > threshold);
+                
 
                 // Publish state based on adjusted threshold
                 new_state = (stdv - m_sensitivity) > threshold;
