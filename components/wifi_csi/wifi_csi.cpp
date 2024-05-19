@@ -75,7 +75,8 @@ void esphome::wifi_csi::CsiSensor::update() {
     static float ewma_stdv = 0; // EWMA of stdv
     static float alpha = 0.2; // Smoothing factor for EWMA
     static float threshold = 1.3; // Initial threshold value
-    static bool detected = false;
+    static bool  new_state = false;
+    static float previous_thresh = 0;
 
     if (m_rssi) {        
         float avgerageRssi = 0;    
@@ -98,15 +99,10 @@ void esphome::wifi_csi::CsiSensor::update() {
 
                 // Adjust the threshold based on EWMA
                 threshold = ewma_stdv * 1.3; // Adjust the multiplier as needed
+                if(new_state) publish_state((stdv + m_sensitivity) > threshold);
 
                 // Publish state based on adjusted threshold
-                bool new_state = (stdv - m_sensitivity) > threshold;
-                if (detected){
-                    if ((stdv + m_sensitivity) > threshold){
-                        publish_state(true)
-                    }
-                } 
-                detected = new_state;
+                new_state = (stdv - m_sensitivity) > threshold;
                 
                 ESP_LOGD(TAG, "ewma_stdv: %.2f, threshold: %.2f, state: %d", ewma_stdv, threshold, new_state);
                 // ESP_LOGD(TAG,"stdv: %.2f, curRssi: %d , avgRssi: %.2f, motion: %d",stdv,currentRssi,avgerageRssi,motion);
