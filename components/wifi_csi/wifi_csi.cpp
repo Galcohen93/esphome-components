@@ -87,7 +87,7 @@ void esphome::wifi_csi::CsiSensor::update() {
             stdv += pow((currentRssi - avgerageRssi),2);
             stdv_part = stdv;
 
-            if (idx + 1 % 20 == 0){       // stdv each 20 rssi waves
+            if ((idx + 1) % 20 == 0){       // stdv each 20 rssi waves
                 stdv_part = sqrt(stdv_part / 20);
                 // ESP_LOGD(TAG,"stdv: %.2f",stdv);
                 ESP_LOGD(TAG,"stdv each 20: %.2f",stdv_part);
