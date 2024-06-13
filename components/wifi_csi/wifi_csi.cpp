@@ -1,153 +1,260 @@
-/**
- * @brief Simple motion detection sensor that uses the WiFi signal strength
- *        signal (RSSI) to detect motions.
- *
- * @author Jan Peter Riegel <JanPeter1@familie-riegel.de>
- * Copyright (c) 2022
- */
+#include "motionDetector.h"
+#include <WiFi.h>
+#include "esp_wifi.h"
 
-#include "wifi_csi.h"
+#define ENABLE_ALARM_THRESHOLD 0
+#define MAX_SAMPLEBUFFERSIZE 256
+#define MAX_AVERAGEBUFFERSIZE 64
+#define MAX_VARIANCE 65535
+#define MINIMUM_RSSI -100
 
+int enableThreshold = ENABLE_ALARM_THRESHOLD;
+bool enableAutoRegressive = false;
+int sampleBufferSize = MAX_SAMPLEBUFFERSIZE;
+int mobileAverageFilterSize = MAX_SAMPLEBUFFERSIZE;
+int mobileAverageBufferSize = MAX_AVERAGEBUFFERSIZE;
+int varianceThreshold = 3;
+int varianceIntegratorLimitMax = MAX_SAMPLEBUFFERSIZE;
+int varianceIntegratorLimit = 3;
+int varianceBufferSize = MAX_SAMPLEBUFFERSIZE;
+int minimumRSSI = MINIMUM_RSSI;
+int enableCSVout = 0;
 
+int* sampleBuffer = NULL;
+int sampleBufferIndex = 0;
+int sampleBufferValid = 0;
+int* mobileAverageBuffer = NULL;
+int mobileAverageBufferIndex = 0;
+int mobileAverageBufferValid = 0;
+int* varianceBuffer = NULL;
+int varianceBufferIndex = 0;
+int varianceBufferValid = 0;
+int mobileAverage = 0;
+int mobileAverageTemp = 0;
+int variance = RADAR_BOOTING;
+int variancePrev = 0;
+int varianceSample = 0;
+int varianceAR = 0;
+int varianceIntegral = 0;
+int detectionLevel = 0;
+int modeRes = 0;
+int scanMode = SCANMODE_STA;
+int strongestClientRSSI = -100;
+int strongestClientfound = 0;
+uint8_t strongestClientBSSID[6] = {0};
+uint8_t BSSIDinUse[6] = {0};
+int strongestRSSI = -100;
+int strongestChannel = 0;
+int strongestAPfound = 0;
+uint8_t strongestBSSID[6] = {0};
 
-static const char *const TAG = "wifi_csi";
-extern esphome::wifi::WiFiComponent *esphome::wifi::global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-esphome::wifi_csi::CsiSensor::CsiSensor()
-: PollingComponent()
-, binary_sensor::BinarySensor()
-, m_pollingInterval(100)
-, m_bufferSize(100)
-, m_sensitivity(2)
-, m_rssi(nullptr)
-{
-    set_update_interval(m_pollingInterval);
-    this->set_device_class("motion");
-}
-
-esphome::wifi_csi::CsiSensor::~CsiSensor()
-{
-    if (m_rssi) {
-        ESP_LOGD(TAG, "rssi");
-        free(m_rssi);
-        m_rssi = nullptr;
-    }
-}
-
-float esphome::wifi_csi::CsiSensor::get_setup_priority() const
-{
-    return esphome::setup_priority::AFTER_WIFI;
-}
-
-void esphome::wifi_csi::CsiSensor::dump_config()
-{
-    ESP_LOGCONFIG(TAG, "Wifi CSI:");
-    ESP_LOGCONFIG(TAG, "polling interval: %dms", m_pollingInterval);
-    ESP_LOGCONFIG(TAG, "buffer size: %d", m_bufferSize);
-    ESP_LOGCONFIG(TAG, "sensitivity: %.2f", m_sensitivity);
-}
-
-void esphome::wifi_csi::CsiSensor::set_timing(int pollingInterval)
-{
-    m_pollingInterval = pollingInterval;
-    set_update_interval(pollingInterval);
-}
-
-void esphome::wifi_csi::CsiSensor::set_sensitivity(float sensitivity)
-{
-    m_sensitivity = sensitivity;
-}
-
-void esphome::wifi_csi::CsiSensor::set_buffer_size(int bufferSize)
-{
-    m_bufferSize = bufferSize;
-    if (m_rssi != nullptr) free(m_rssi);
-    m_rssi = reinterpret_cast<int*>(malloc(m_bufferSize * sizeof(int)));
-}
-
-
-void esphome::wifi_csi::CsiSensor::update() {
-    static int idx = 0;   // pointer inside rssi
-    static int cnt = 0;   // number of values inside rssi
-    static float sum = 0.0;   // sum of all rssi values
-    static float stdv = 0; // stdv 
-    static float stdv_part = 0; // stdv of 20 rssi
-    static float ewma_stdv = 0; // EWMA of stdv
-    static float alpha = 0.1; // Smoothing factor for EWMA
-    static float threshold = 1.3; // Initial threshold value
-
-    if (m_rssi) {        
-        float avgerageRssi = 0;    
-        int currentRssi = 0;
-        bool motion = 0;
-        if (nullptr != esphome::wifi::global_wifi_component) currentRssi = esphome::wifi::global_wifi_component->wifi_rssi();
-
-        if (cnt == m_bufferSize) {
-            sum -= m_rssi[idx];  // we will overwrite the oldest value, so remove it from the current sum
-
-            avgerageRssi = sum / cnt;
-            float diff = pow((currentRssi - avgerageRssi),2);
-            stdv += diff;
-            stdv_part += diff;
-
-            if ((idx + 1) % 20 == 0){       // stdv each 20 rssi waves
-                stdv_part = sqrt(stdv_part / 20);
-                // ESP_LOGD(TAG,"stdv: %.2f",stdv);
-                ESP_LOGD(TAG,"stdv each 20: %.2f",stdv_part);
-                // if (stdv_part > 1.0){
-                //     publish_state(true);
-                //     ESP_LOGD(TAG,"published ON from stdv20 ");
-                // }
-                // publish_state(stdv_part > 1.3);
-                stdv_part = 0;
-
-            }
-
-            if (idx == m_bufferSize - 1){
-                stdv = sqrt(stdv / m_bufferSize);
-                ESP_LOGD(TAG,"stdv: %.2f",stdv);
-
-                // Update EWMA
-                ewma_stdv = alpha * stdv + (1 - alpha) * ewma_stdv;
-
-                // Adjust the threshold based on EWMA
-                threshold = ewma_stdv * 1.3; // Adjust the multiplier as needed
-
-                // Publish state based on adjusted threshold
-                bool new_state = stdv > threshold;
-                publish_state(new_state);
-
-                ESP_LOGD(TAG, "ewma_stdv: %.2f, threshold: %.2f, state: %d", ewma_stdv, threshold, new_state);
-                // ESP_LOGD(TAG,"stdv: %.2f, curRssi: %d , avgRssi: %.2f, motion: %d",stdv,currentRssi,avgerageRssi,motion);
-                stdv = 0;
-            }
-            // float dev = abs(m_rssi[idx] - avgerageRssi);
-            // motion = (dev >= m_sensitivity);
-
-            // publish_state(motion);
-
-        } else {
-            cnt += 1;
-
+int motionDetector_init() {
+    if (sampleBuffer == NULL) {
+        sampleBuffer = (int*)malloc(sizeof(int) * sampleBufferSize);
+        for (int i = 0; i < sampleBufferSize; i++) {
+            sampleBuffer[i] = 0x00;
         }
-        m_rssi[idx] = currentRssi;
-        idx = (idx + 1) % m_bufferSize;
-        sum += currentRssi;
-        // ESP_LOGD(TAG,"rssi idx: %d",m_rssi[idx]);
-
-
-        // log every 5 seconds
-        static time_t last_t;
-        time_t now_t;
-        time(&now_t);
-        if (difftime(now_t, last_t) > 5.0) {
-            ESP_LOGD(TAG, "idx: %d, cnt: %d: avg: %.1f, current: %d, sensitvity: %.2f, motion: %d", idx, cnt, avgerageRssi, currentRssi, m_sensitivity, motion);
-            last_t = now_t;
-        }
-    } 
-    else {
-        set_buffer_size(m_bufferSize);
     }
+    if (mobileAverageBuffer == NULL) {
+        mobileAverageBuffer = (int*)malloc(sizeof(int) * mobileAverageBufferSize);
+        for (int i = 0; i < mobileAverageBufferSize; i++) {
+            mobileAverageBuffer[i] = 0x00;
+        }
+    }
+    if (varianceBuffer == NULL) {
+        varianceBuffer = (int*)malloc(sizeof(int) * varianceBufferSize);
+        for (int i = 0; i < varianceBufferSize; i++) {
+            varianceBuffer[i] = 0x00;
+        }
+    }
+    variance = -1;
+    return 1;
 }
 
+int motionDetector_init_PSRAM() {
+    if (sampleBuffer == NULL) {
+        sampleBuffer = (int*)ps_malloc(sizeof(int) * sampleBufferSize);
+        for (int i = 0; i < sampleBufferSize; i++) {
+            sampleBuffer[i] = 0x00;
+        }
+    }
+    if (mobileAverageBuffer == NULL) {
+        mobileAverageBuffer = (int*)ps_malloc(sizeof(int) * mobileAverageBufferSize);
+        for (int i = 0; i < mobileAverageBufferSize; i++) {
+            mobileAverageBuffer[i] = 0x00;
+        }
+    }
+    if (varianceBuffer == NULL) {
+        varianceBuffer = (int*)ps_malloc(sizeof(int) * varianceBufferSize);
+        for (int i = 0; i < varianceBufferSize; i++) {
+            varianceBuffer[i] = 0x00;
+        }
+    }
+    variance = -1;
+    return 1;
+}
 
+int motionDetector_deinit() {
+    if (sampleBuffer != NULL) {
+        free(sampleBuffer);
+    }
+    if (mobileAverageBuffer != NULL) {
+        free(mobileAverageBuffer);
+    }
+    if (varianceBuffer != NULL) {
+        free(varianceBuffer);
+    }
+    return 1;
+}
+
+int motionDetector_config(int sampleBufSize = 256, int mobileAvgSize = 64, int varThreshold = 3, int varIntegratorLimit = 3, bool enableAR = false) {
+    if (sampleBufSize >= MAX_SAMPLEBUFFERSIZE) {
+        sampleBufSize = MAX_SAMPLEBUFFERSIZE;
+    }
+    sampleBufferSize = sampleBufSize;
+
+    varianceBufferSize = sampleBufferSize;
+
+    if (mobileAvgSize >= MAX_SAMPLEBUFFERSIZE) {
+        mobileAvgSize = MAX_SAMPLEBUFFERSIZE;
+    }
+    mobileAverageFilterSize = mobileAvgSize;
+
+    if (varThreshold >= MAX_VARIANCE) {
+        varThreshold = MAX_VARIANCE;
+    }
+    varianceThreshold = varThreshold;
+
+    if (varIntegratorLimit >= varianceIntegratorLimitMax) {
+        varIntegratorLimit = varianceIntegratorLimitMax;
+    }
+    varianceIntegratorLimit = varIntegratorLimit;
+
+    enableAutoRegressive = enableAR;
+    return 1;
+}
+
+int motionDetector_process(int sample = 0) {
+    if ((sampleBuffer == NULL) || (mobileAverageBuffer == NULL) || (varianceBuffer == NULL)) {
+        return RADAR_UNINITIALIZED;
+    }
+
+    if (sample < minimumRSSI) {
+        return RADAR_RSSI_TOO_LOW;
+    }
+
+    sampleBuffer[sampleBufferIndex] = sample;
+    sampleBufferIndex++;
+    if (sampleBufferIndex >= sampleBufferSize) {
+        sampleBufferIndex = 0;
+        sampleBufferValid = 1;
+    }
+
+    if (sampleBufferValid >= 1) {
+        mobileAverageTemp = 0;
+        int mobilePointer = 0;
+        for (int i = 0; i < mobileAverageFilterSize; i++) {
+            mobilePointer = sampleBufferIndex - i;
+            if (mobilePointer <= 0) {
+                mobilePointer += (sampleBufferSize - 1);
+            }
+            mobileAverageTemp += sampleBuffer[mobilePointer];
+        }
+        mobileAverage = mobileAverageTemp / mobileAverageFilterSize;
+        mobileAverageBuffer[mobileAverageBufferIndex] = mobileAverage;
+
+        variancePrev = variance;
+        varianceSample = (sample - mobileAverageBuffer[mobileAverageBufferIndex]) * (sample - mobileAverageBuffer[mobileAverageBufferIndex]);
+        varianceBuffer[varianceBufferIndex] = varianceSample;
+
+        varianceIntegral = 0;
+        int variancePointer = 0;
+        for (int i = 0; i < varianceIntegratorLimit; i++) {
+            variancePointer = varianceBufferIndex - i;
+            if (variancePointer <= 0) {
+                variancePointer += (varianceBufferSize - 1);
+            }
+            varianceIntegral += varianceBuffer[variancePointer];
+        }
+
+        varianceBufferIndex++;
+        if (varianceBufferIndex >= varianceBufferSize) {
+            varianceBufferIndex = 0;
+            varianceBufferValid = 1;
+        }
+
+        varianceAR = (varianceIntegral + varianceAR) / 2;
+
+        variance = enableAutoRegressive ? varianceAR : varianceIntegral;
+
+        mobileAverageBufferIndex++;
+        if (mobileAverageBufferIndex >= mobileAverageBufferSize) {
+            mobileAverageBufferIndex = 0;
+            mobileAverageBufferValid = 1;
+        }
+    }
+
+    if ((variance >= varianceThreshold) && (enableThreshold > 0)) {
+        detectionLevel = variance;
+        return detectionLevel;
+    }
+
+    if ((variance < varianceThreshold) && (variance >= 0) && (enableThreshold > 0)) {
+        detectionLevel = 0;
+        return detectionLevel;
+    }
+
+    return variance;
+}
+
+int motionDetector() {
+    int RSSIlevel = (int)WiFi.RSSI();
+    if (RSSIlevel == 0) {
+        return RADAR_INOPERABLE;
+    }
+
+    return motionDetector_process(RSSIlevel);
+}
+
+int bistatic_get_rssi_SoftAP_strongestClient() {
+    int rssi = 0;
+    wifi_sta_list_t stationList;
+    esp_err_t scanRes = esp_wifi_ap_get_sta_list(&stationList);
+
+    if (scanRes != ESP_OK) {
+        return 0;
+    }
+
+    if (strongestClientfound == 0) {
+        strongestClientRSSI = -100;
+        for (int i = 0; i < stationList.num; i++) {
+            wifi_sta_info_t station = stationList.sta[i];
+            int currentRSSI = station.rssi;
+            if (currentRSSI > strongestClientRSSI) {
+                strongestClientfound = 1;
+                strongestClientRSSI = currentRSSI;
+                memcpy(strongestClientBSSID, station.mac, 6);
+            }
+        }
+    }
+
+    int bssidScanOK = 0;
+    if (strongestClientfound == 1) {
+        for (int i = 0; i < stationList.num; i++) {
+            wifi_sta_info_t station = stationList.sta[i];
+            if (memcmp(station.mac, strongestClientBSSID, 6) == 0) {
+                rssi = station.rssi;
+                bssidScanOK = 1;
+                break;
+            }
+        }
+        if (bssidScanOK == 0) {
+            strongestClientfound = 0;
+        }
+    }
+
+    if (strongestClientfound == 0) {
+        rssi = 0;
+    }
+    return rssi;
+}
