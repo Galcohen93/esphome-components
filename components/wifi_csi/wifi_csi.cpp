@@ -1,13 +1,12 @@
-
 #include "wifi_csi.h"
+#include <cmath>
 
 static const char *const TAG = "wifi_csi";
 extern esphome::wifi::WiFiComponent *esphome::wifi::global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-// Constants for the motion detection logic
-constexpr float ALPHA = 0.2;          // Smoothing factor for EWMA
-constexpr float THRESHOLD_MULTIPLIER = 1.2; // Multiplier for adjusting the threshold
-constexpr int LOG_INTERVAL = 5;       // Logging interval in seconds
+constexpr float ALPHA = 0.2;
+constexpr float THRESHOLD_MULTIPLIER = 1.2;
+constexpr int LOG_INTERVAL = 5;
 
 esphome::wifi_csi::CsiSensor::CsiSensor()
 : PollingComponent(), binary_sensor::BinarySensor(),
@@ -58,13 +57,14 @@ void esphome::wifi_csi::CsiSensor::set_buffer_size(int bufferSize)
 }
 
 void esphome::wifi_csi::CsiSensor::update() {
-    static int idx = 0; // Index inside RSSI buffer
-    static int cnt = 0; // Number of values inside RSSI buffer
-    static float sum = 0.0; // Sum of all RSSI values
-    static float stdv = 0; // Standard deviation
-    static float ewma_stdv = 0; // EWMA of standard deviation
-    static float threshold = 1.3; // Initial threshold value
-    static bool new_state = false; // New state for motion detection
+    static int idx = 0;
+    static int cnt = 0;
+    static float sum = 0.0;
+    static float stdv = 0;
+    static float ewma_stdv = 0;
+    static float threshold = 1.3;
+    static bool new_state = false;
+    static bool last_state = false; // To handle hysteresis
 
     if (m_rssi) {
         int currentRssi = esphome::wifi::global_wifi_component ? esphome::wifi::global_wifi_component->wifi_rssi() : 0;
@@ -88,13 +88,27 @@ void esphome::wifi_csi::CsiSensor::update() {
                 threshold = ewma_stdv * THRESHOLD_MULTIPLIER;
                 new_state = (stdv - m_sensitivity) > threshold;
 
-                ESP_LOGD(TAG, "stdv: %.2f, ewma_stdv: %.2f, threshold: %.2f, state: %d", stdv, ewma_stdv, threshold, new_state);
+                // Apply hysteresis
+                if (new_state != last_state) {
+                    if (new_state) {
+                        if ((stdv - m_sensitivity) > (threshold + m_sensitivity)) {
+                            last_state = new_state;
+                        }
+                    } else {
+                        if ((stdv - m_sensitivity) < (threshold - m_sensitivity)) {
+                            last_state = new_state;
+                        }
+                    }
+                }
+
+                ESP_LOGD(TAG, "stdv: %.2f, ewma_stdv: %.2f, threshold: %.2f, state: %d", stdv, ewma_stdv, threshold, last_state);
                 stdv = 0;
             }
         }
 
         idx = (idx + 1) % m_bufferSize;
-        log_rssi_data(idx, cnt, sum, currentRssi, new_state);
+        log_rssi_data(idx, cnt, sum, currentRssi, last_state);
+        this->publish_state(last_state);
     } else {
         set_buffer_size(m_bufferSize);
     }
@@ -102,7 +116,7 @@ void esphome::wifi_csi::CsiSensor::update() {
 
 void esphome::wifi_csi::CsiSensor::update_rssi_buffer(int currentRssi, int& idx, int& cnt, float& sum, float& stdv)
 {
-    sum -= m_rssi[idx]; // Remove the oldest value from the sum
+    sum -= m_rssi[idx];
     m_rssi[idx] = currentRssi;
     sum += currentRssi;
 
