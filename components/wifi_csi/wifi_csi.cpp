@@ -1,12 +1,17 @@
 #include "wifi_csi.h"
 #include <cmath>
+#include <deque>
+#include <algorithm>
 
 static const char *const TAG = "wifi_csi";
-extern esphome::wifi::WiFiComponent *esphome::wifi::global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+extern esphome::wifi::WiFiComponent *esphome::wifi::global_wifi_component;
 
-constexpr float ALPHA = 0.2;
-constexpr float THRESHOLD_MULTIPLIER = 1.2;
-constexpr int LOG_INTERVAL = 5;
+// Constants for the motion detection logic
+constexpr float ALPHA = 0.2;                  // Smoothing factor for EWMA
+constexpr float THRESHOLD_MULTIPLIER = 1.2;   // Multiplier for adjusting the threshold
+constexpr int LOG_INTERVAL = 5;               // Logging interval in seconds
+constexpr int MIN_STABLE_TIME = 10;           // Minimum time in seconds to consider RSSI stable
+constexpr float SENSITIVITY_MULTIPLIER = 1.5; // Multiplier for sensitivity adjustment
 
 esphome::wifi_csi::CsiSensor::CsiSensor()
 : PollingComponent(), binary_sensor::BinarySensor(),
@@ -64,7 +69,8 @@ void esphome::wifi_csi::CsiSensor::update() {
     static float ewma_stdv = 0;
     static float threshold = 1.3;
     static bool new_state = false;
-    static bool last_state = false; // To handle hysteresis
+    static bool last_state = false;
+    static std::deque<float> recent_stdvs;
 
     if (m_rssi) {
         int currentRssi = esphome::wifi::global_wifi_component ? esphome::wifi::global_wifi_component->wifi_rssi() : 0;
@@ -85,17 +91,24 @@ void esphome::wifi_csi::CsiSensor::update() {
             if (idx == m_bufferSize - 1) {
                 stdv = sqrt(stdv / m_bufferSize);
                 ewma_stdv = ALPHA * stdv + (1 - ALPHA) * ewma_stdv;
-                threshold = ewma_stdv * THRESHOLD_MULTIPLIER;
+
+                // Update threshold dynamically based on recent stdv history
+                recent_stdvs.push_back(ewma_stdv);
+                if (recent_stdvs.size() > MIN_STABLE_TIME) {
+                    recent_stdvs.pop_front();
+                }
+                float median_stdv = calculate_median(recent_stdvs);
+                threshold = median_stdv * THRESHOLD_MULTIPLIER;
                 new_state = (stdv - m_sensitivity) > threshold;
 
                 // Apply hysteresis
                 if (new_state != last_state) {
                     if (new_state) {
-                        if ((stdv - m_sensitivity) > (threshold + m_sensitivity)) {
+                        if ((stdv - m_sensitivity) > (threshold + m_sensitivity * SENSITIVITY_MULTIPLIER)) {
                             last_state = new_state;
                         }
                     } else {
-                        if ((stdv - m_sensitivity) < (threshold - m_sensitivity)) {
+                        if ((stdv - m_sensitivity) < (threshold - m_sensitivity * SENSITIVITY_MULTIPLIER)) {
                             last_state = new_state;
                         }
                     }
@@ -139,3 +152,11 @@ void esphome::wifi_csi::CsiSensor::log_rssi_data(int idx, int cnt, float sum, in
         last_t = now_t;
     }
 }
+
+float esphome::wifi_csi::CsiSensor::calculate_median(std::deque<float>& data) {
+    std::vector<float> sorted_data(data.begin(), data.end());
+    std::sort(sorted_data.begin(), sorted_data.end());
+    size_t mid = sorted_data.size() / 2;
+    return sorted_data.size() % 2 == 0 ? (sorted_data[mid - 1] + sorted_data[mid]) / 2 : sorted_data[mid];
+}
+
