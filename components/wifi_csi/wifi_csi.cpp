@@ -7,15 +7,20 @@ static const char *const TAG = "wifi_csi";
 extern esphome::wifi::WiFiComponent *esphome::wifi::global_wifi_component;
 
 // Constants for the motion detection logic
-constexpr float ALPHA = 0.2;                  // Smoothing factor for EWMA
-constexpr float THRESHOLD_MULTIPLIER = 1.2;   // Multiplier for adjusting the threshold
+constexpr float ALPHA = 0.3;                  // Smoothing factor for EWMA
+constexpr float THRESHOLD_MULTIPLIER = 1.5;   // Multiplier for adjusting the threshold
 constexpr int LOG_INTERVAL = 5;               // Logging interval in seconds
 constexpr int MIN_STABLE_TIME = 10;           // Minimum time in seconds to consider RSSI stable
-constexpr float SENSITIVITY_MULTIPLIER = 1.5; // Multiplier for sensitivity adjustment
+constexpr float SENSITIVITY_MULTIPLIER = 1.8; // Multiplier for sensitivity adjustment
+
+// Kalman filter parameters
+constexpr float Q = 0.01; // Process noise covariance
+constexpr float R = 0.5;  // Measurement noise covariance
 
 esphome::wifi_csi::CsiSensor::CsiSensor()
 : PollingComponent(), binary_sensor::BinarySensor(),
-  m_pollingInterval(100), m_bufferSize(100), m_sensitivity(2), m_rssi(nullptr)
+  m_pollingInterval(100), m_bufferSize(100), m_sensitivity(1.5), m_rssi(nullptr),
+  m_kalman_x(0), m_kalman_p(1)
 {
     set_update_interval(m_pollingInterval);
     this->set_device_class("motion");
@@ -75,17 +80,20 @@ void esphome::wifi_csi::CsiSensor::update() {
     if (m_rssi) {
         int currentRssi = esphome::wifi::global_wifi_component ? esphome::wifi::global_wifi_component->wifi_rssi() : 0;
 
+        // Apply Kalman filter to the current RSSI value
+        float filteredRssi = apply_kalman_filter(currentRssi);
+
         if (cnt == m_bufferSize) {
-            update_rssi_buffer(currentRssi, idx, cnt, sum, stdv);
+            update_rssi_buffer(filteredRssi, idx, cnt, sum, stdv);
         } else {
-            m_rssi[idx] = currentRssi;
-            sum += currentRssi;
+            m_rssi[idx] = filteredRssi;
+            sum += filteredRssi;
             ++cnt;
         }
 
         if (cnt == m_bufferSize) {
             float avgRssi = sum / cnt;
-            float diff = pow((currentRssi - avgRssi), 2);
+            float diff = pow((filteredRssi - avgRssi), 2);
             stdv += diff;
 
             if (idx == m_bufferSize - 1) {
@@ -120,14 +128,14 @@ void esphome::wifi_csi::CsiSensor::update() {
         }
 
         idx = (idx + 1) % m_bufferSize;
-        log_rssi_data(idx, cnt, sum, currentRssi, last_state);
+        log_rssi_data(idx, cnt, sum, filteredRssi, last_state);
         this->publish_state(last_state);
     } else {
         set_buffer_size(m_bufferSize);
     }
 }
 
-void esphome::wifi_csi::CsiSensor::update_rssi_buffer(int currentRssi, int& idx, int& cnt, float& sum, float& stdv)
+void esphome::wifi_csi::CsiSensor::update_rssi_buffer(float currentRssi, int& idx, int& cnt, float& sum, float& stdv)
 {
     sum -= m_rssi[idx];
     m_rssi[idx] = currentRssi;
@@ -140,7 +148,7 @@ void esphome::wifi_csi::CsiSensor::update_rssi_buffer(int currentRssi, int& idx,
     }
 }
 
-void esphome::wifi_csi::CsiSensor::log_rssi_data(int idx, int cnt, float sum, int currentRssi, bool new_state)
+void esphome::wifi_csi::CsiSensor::log_rssi_data(int idx, int cnt, float sum, float currentRssi, bool new_state)
 {
     static time_t last_t;
     time_t now_t;
@@ -148,7 +156,7 @@ void esphome::wifi_csi::CsiSensor::log_rssi_data(int idx, int cnt, float sum, in
 
     if (difftime(now_t, last_t) > LOG_INTERVAL) {
         float avgRssi = sum / cnt;
-        ESP_LOGD(TAG, "idx: %d, cnt: %d, avg: %.1f, current: %d, sensitivity: %.2f, state: %d", idx, cnt, avgRssi, currentRssi, m_sensitivity, new_state);
+        ESP_LOGD(TAG, "idx: %d, cnt: %d, avg: %.1f, current: %.1f, sensitivity: %.2f, state: %d", idx, cnt, avgRssi, currentRssi, m_sensitivity, new_state);
         last_t = now_t;
     }
 }
@@ -160,3 +168,15 @@ float esphome::wifi_csi::CsiSensor::calculate_median(std::deque<float>& data) {
     return sorted_data.size() % 2 == 0 ? (sorted_data[mid - 1] + sorted_data[mid]) / 2 : sorted_data[mid];
 }
 
+float esphome::wifi_csi::CsiSensor::apply_kalman_filter(float measurement) {
+    // Predict
+    float x_pred = m_kalman_x;
+    float p_pred = m_kalman_p + Q;
+
+    // Update
+    float k = p_pred / (p_pred + R);
+    m_kalman_x = x_pred + k * (measurement - x_pred);
+    m_kalman_p = (1 - k) * p_pred;
+
+    return m_kalman_x;
+}
