@@ -13,19 +13,7 @@
 #define TXD_PIN GPIO_NUM_17   // TX pin
 #define RXD_PIN GPIO_NUM_18   // RX pin
 
-void init_uart() {
-    const uart_config_t uart_config = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
-    };
 
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 1024 * 2, 0, 0, NULL, 0));
-}
 
 static const char *const TAG = "wifi_csi";
 extern esphome::wifi::WiFiComponent *esphome::wifi::global_wifi_component;
@@ -40,9 +28,25 @@ constexpr float SENSITIVITY_MULTIPLIER = 1.8; // Multiplier for sensitivity adju
 // Kalman filter parameters
 constexpr float Q = 0.01; // Process noise covariance
 constexpr float R = 0.5;  // Measurement noise covariance
-init_uart();
 
 uint8_t data[128];
+
+
+esphome::wifi_csi::CsiSensor::init_uart()
+ {
+    const uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+    };
+
+    ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 1024 * 2, 0, 0, NULL, 0));
+}
+
 esphome::wifi_csi::CsiSensor::CsiSensor()
 : PollingComponent(), binary_sensor::BinarySensor(),
   m_pollingInterval(100), m_bufferSize(100), m_sensitivity(1.5), m_rssi(nullptr),

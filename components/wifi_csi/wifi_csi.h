@@ -38,6 +38,8 @@ public:
     ~CsiSensor();
 
     float get_setup_priority() const override;
+    void init_uart();
+
     void dump_config();
 
     void set_timing(int pollingInterval);
